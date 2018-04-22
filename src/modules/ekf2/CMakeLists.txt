@@ -34,12 +34,14 @@ px4_add_module(
 	MODULE modules__ekf2
 	MAIN ekf2
 	COMPILE_FLAGS
+		-Wno-sign-compare # TODO: fix all sign-compare
 	STACK_MAIN 2500
 	STACK_MAX 4000
+	INCLUDES
+		${PX4_SOURCE_DIR}/src/lib/ecl
 	SRCS
 		ekf2_main.cpp
 	DEPENDS
-		platforms__common
 		git_ecl
+		ecl
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix :

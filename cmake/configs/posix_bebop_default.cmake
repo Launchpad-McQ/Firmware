@@ -1,6 +1,5 @@
-include(posix/px4_impl_posix)
 
-set(CMAKE_TOOLCHAIN_FILE ${PX4_SOURCE_DIR}/cmake/toolchains/Toolchain-arm-linux-gnueabihf-raspbian.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${PX4_SOURCE_DIR}/cmake/toolchains/Toolchain-arm-linux-gnueabihf.cmake)
 
 add_definitions(
 	-D__PX4_POSIX_BEBOP
@@ -8,19 +7,13 @@ add_definitions(
 	-D__DF_BEBOP # Define needed DriverFramework
 	)
 
-set(CMAKE_PROGRAM_PATH
-	"${RPI_TOOLCHAIN_DIR}/gcc-linaro-arm-linux-gnueabihf-raspbian/bin"
-	${CMAKE_PROGRAM_PATH}
-	)
-
 set(config_module_list
-
-  # examples/px4_simple_app
 
 	#
 	# Board support modules
 	#
 	drivers/device
+	drivers/linux_sbus
 	modules/sensors
 	platforms/posix/drivers/df_ms5607_wrapper
 	platforms/posix/drivers/df_mpu6050_wrapper
@@ -45,6 +38,7 @@ set(config_module_list
 	modules/attitude_estimator_q
 	modules/position_estimator_inav
 	modules/local_position_estimator
+	modules/landing_target_estimator
 	modules/ekf2
 
 	#
@@ -62,9 +56,8 @@ set(config_module_list
 	modules/sdlog2
 	modules/logger
 	modules/commander
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
-	modules/systemlib/mixer
 	modules/uORB
 	modules/dataman
 	modules/land_detector
@@ -80,26 +73,14 @@ set(config_module_list
 	# Libraries
 	#
 	lib/controllib
-	lib/mathlib
-	lib/mathlib/math/filter
-	lib/geo
-	lib/ecl
-	lib/geo_lookup
-	lib/launchdetection
-	lib/external_lgpl
 	lib/conversion
-	lib/terrain_estimation
-	lib/runway_takeoff
-	lib/tailsitter_recovery
-	lib/version
 	lib/DriverFramework/framework
-
-	#
-	# POSIX
-	#
-	platforms/common
-	platforms/posix/px4_layer
-	platforms/posix/work_queue
+	lib/ecl
+	lib/mathlib
+	lib/mixer
+	lib/terrain_estimation
+	lib/version
+	lib/FlightTasks
 )
 
 set(config_df_driver_list

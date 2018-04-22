@@ -98,11 +98,14 @@
 #define PX4_I2C_BUS_SONAR      2
 #define PX4_I2C_BUS_EXPANSION  3
 
-#define PX4_I2C_OBDEV_HMC5883	0x1e
-
 #define PX4_I2C_BUS_ONBOARD_HZ      400000
 #define PX4_I2C_BUS_SONAR_HZ        400000
 #define PX4_I2C_BUS_EXPANSION_HZ    400000
+
+#define BOARD_NUMBER_I2C_BUSES  3
+#define BOARD_I2C_BUS_CLOCK_INIT {PX4_I2C_BUS_ONBOARD_HZ, PX4_I2C_BUS_SONAR_HZ, PX4_I2C_BUS_EXPANSION_HZ}
+
+
 /*
  * Devices on the onboard bus.
  *
@@ -200,7 +203,7 @@
 #define GPIO_OTGFS_VBUS (GPIO_INPUT|GPIO_FLOAT|GPIO_PORTA|GPIO_PIN9)
 
 #define RC_SERIAL_PORT		"/dev/ttyS5"
-#define INVERT_RC_INPUT(_s)		while(0)
+#define INVERT_RC_INPUT(_invert_true)		while(0)
 
 /* High-resolution timer
  */
@@ -341,16 +344,6 @@ void board_pwr_init(int stage);
  ****************************************************************************/
 
 bool board_pwr_button_down(void);
-
-/****************************************************************************
- * Name: board_pwr
- *
- * Description:
- *   Called to turn on or off the TAP
- *
- ****************************************************************************/
-
-__EXPORT bool px4_board_pwr(bool on_not_off);
 
 #include "../common/board_common.h"
 

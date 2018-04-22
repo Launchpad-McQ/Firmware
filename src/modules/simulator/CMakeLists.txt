@@ -57,12 +57,11 @@ px4_add_module(
 	MODULE modules__simulator
 	MAIN simulator
 	COMPILE_FLAGS
+	INCLUDES
+		${PX4_SOURCE_DIR}/mavlink/include/mavlink
 	SRCS
 		${SIMULATOR_SRCS}
 	DEPENDS
+		git_mavlink_v2
 		platforms__common
-		git_jmavsim
-		git_gazebo
 	)
-
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 

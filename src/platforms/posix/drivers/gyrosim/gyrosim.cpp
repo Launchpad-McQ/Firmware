@@ -103,8 +103,6 @@ using namespace DriverFramework;
 
 #define GYROSIM_GYRO_DEFAULT_RATE	400
 
-#define GYROSIM_ONE_G			9.80665f
-
 #ifdef PX4_SPI_BUS_EXT
 #define EXTERNAL_BUS PX4_SPI_BUS_EXT
 #else
@@ -148,7 +146,6 @@ private:
 	GYROSIM_gyro		*_gyro;
 	uint8_t			_product;	/** product code */
 
-	WorkHandle		_call;
 	unsigned		_call_interval;
 
 	ringbuffer::RingBuffer	*_accel_reports;
@@ -292,9 +289,7 @@ public:
 protected:
 	friend class GYROSIM;
 
-	void			parent_poll_notify();
-
-	virtual void 		_measure() {};
+	virtual void 		_measure() {}
 private:
 	GYROSIM			*_parent;
 	orb_advert_t		_gyro_topic;
@@ -312,7 +307,6 @@ GYROSIM::GYROSIM(const char *path_accel, const char *path_gyro, enum Rotation ro
 	VirtDevObj("GYROSIM", path_accel, ACCEL_BASE_DEVICE_PATH, 1e6 / 400),
 	_gyro(new GYROSIM_gyro(this, path_gyro)),
 	_product(GYROSIMES_REV_C4),
-	_call{},
 	_accel_reports(nullptr),
 	_accel_scale{},
 	_accel_range_scale(0.0f),
@@ -510,8 +504,11 @@ GYROSIM::transfer(uint8_t *send, uint8_t *recv, unsigned len)
 
 		// FIXME - not sure what interrupt status should be
 		recv[1] = 0;
+
 		// skip cmd and status bytes
-		sim->getMPUReport(&recv[2], len - 2);
+		if (len > 2) {
+			sim->getMPUReport(&recv[2], len - 2);
+		}
 
 	} else if (cmd & DIR_READ) {
 		PX4_DEBUG("Reading %u bytes from register %u", len - 1, reg);
@@ -790,17 +787,11 @@ GYROSIM::devIOCTL(unsigned long cmd, unsigned long arg)
 			return OK;
 		}
 
-	case SENSORIOCGQUEUEDEPTH:
-		return _accel_reports->size();
-
 	case ACCELIOCGSAMPLERATE:
 		return 1e6 / m_sample_interval_usecs;
 
 	case ACCELIOCSSAMPLERATE:
 		_set_sample_rate(arg);
-		return OK;
-
-	case ACCELIOCSLOWPASS:
 		return OK;
 
 	case ACCELIOCSSCALE: {
@@ -826,7 +817,7 @@ GYROSIM::devIOCTL(unsigned long cmd, unsigned long arg)
 		return set_accel_range(arg);
 
 	case ACCELIOCGRANGE:
-		return (unsigned long)((_accel_range_m_s2) / GYROSIM_ONE_G + 0.5f);
+		return (unsigned long)((_accel_range_m_s2) / CONSTANTS_ONE_G + 0.5f);
 
 	case ACCELIOCSELFTEST:
 		return accel_self_test();
@@ -861,17 +852,11 @@ GYROSIM::gyro_ioctl(unsigned long cmd, unsigned long arg)
 			return OK;
 		}
 
-	case SENSORIOCGQUEUEDEPTH:
-		return _gyro_reports->size();
-
 	case GYROIOCGSAMPLERATE:
 		return 1e6 / m_sample_interval_usecs;
 
 	case GYROIOCSSAMPLERATE:
 		_set_sample_rate(arg);
-		return OK;
-
-	case GYROIOCSLOWPASS:
 		return OK;
 
 	case GYROIOCSSCALE:
@@ -933,8 +918,8 @@ GYROSIM::set_accel_range(unsigned max_g_in)
 	switch (_product) {
 	case GYROSIMES_REV_C4:
 		write_reg(MPUREG_ACCEL_CONFIG, 1 << 3);
-		_accel_range_scale = (GYROSIM_ONE_G / 4096.0f);
-		_accel_range_m_s2 = 8.0f * GYROSIM_ONE_G;
+		_accel_range_scale = (CONSTANTS_ONE_G / 4096.0f);
+		_accel_range_m_s2 = 8.0f * CONSTANTS_ONE_G;
 		return OK;
 	}
 
@@ -964,8 +949,8 @@ GYROSIM::set_accel_range(unsigned max_g_in)
 	}
 
 	write_reg(MPUREG_ACCEL_CONFIG, afs_sel << 3);
-	_accel_range_scale = (GYROSIM_ONE_G / lsb_per_g);
-	_accel_range_m_s2 = max_accel_g * GYROSIM_ONE_G;
+	_accel_range_scale = (CONSTANTS_ONE_G / lsb_per_g);
+	_accel_range_m_s2 = max_accel_g * CONSTANTS_ONE_G;
 
 	return OK;
 }
@@ -1066,8 +1051,8 @@ GYROSIM::_measure()
 	arb.y = mpu_report.accel_y;
 	arb.z = mpu_report.accel_z;
 
-	math::Vector<3> aval(mpu_report.accel_x, mpu_report.accel_y, mpu_report.accel_z);
-	math::Vector<3> aval_integrated;
+	matrix::Vector3f aval(mpu_report.accel_x, mpu_report.accel_y, mpu_report.accel_z);
+	matrix::Vector3f aval_integrated;
 
 	bool accel_notify = _accel_int.put(arb.timestamp, aval, aval_integrated, arb.integral_dt);
 	arb.x_integral = aval_integrated(0);
@@ -1091,8 +1076,8 @@ GYROSIM::_measure()
 	grb.y = mpu_report.gyro_y;
 	grb.z = mpu_report.gyro_z;
 
-	math::Vector<3> gval(mpu_report.gyro_x, mpu_report.gyro_y, mpu_report.gyro_z);
-	math::Vector<3> gval_integrated;
+	matrix::Vector3f gval(mpu_report.gyro_x, mpu_report.gyro_y, mpu_report.gyro_z);
+	matrix::Vector3f gval_integrated;
 
 	bool gyro_notify = _gyro_int.put(grb.timestamp, gval, gval_integrated, grb.integral_dt);
 	grb.x_integral = gval_integrated(0);
@@ -1107,10 +1092,6 @@ GYROSIM::_measure()
 
 
 	if (accel_notify) {
-		/* notify anyone waiting for data */
-		updateNotify();
-		_gyro->parent_poll_notify();
-
 		if (!(_pub_blocked)) {
 			/* log the time of this report */
 			perf_begin(_controller_latency_perf);
@@ -1120,9 +1101,6 @@ GYROSIM::_measure()
 	}
 
 	if (gyro_notify) {
-		updateNotify();
-		_gyro->parent_poll_notify();
-
 		if (!(_pub_blocked)) {
 			/* publish it */
 			orb_publish(ORB_ID(sensor_gyro), _gyro->_gyro_topic, &grb);
@@ -1189,12 +1167,6 @@ GYROSIM_gyro::init()
 	return ret;
 }
 
-void
-GYROSIM_gyro::parent_poll_notify()
-{
-	updateNotify();
-}
-
 ssize_t
 GYROSIM_gyro::devRead(void *buffer, size_t buflen)
 {
@@ -1223,7 +1195,7 @@ namespace gyrosim
 
 GYROSIM	*g_dev_sim; // on simulated bus
 
-int	start(enum Rotation);
+int	start(enum Rotation /*rotation*/);
 int	stop();
 int	test();
 int	reset();
@@ -1360,7 +1332,7 @@ test()
 	PX4_INFO("acc  y:  \t%d\traw 0x%0x", (short)a_report.y_raw, (unsigned short)a_report.y_raw);
 	PX4_INFO("acc  z:  \t%d\traw 0x%0x", (short)a_report.z_raw, (unsigned short)a_report.z_raw);
 	PX4_INFO("acc range: %8.4f m/s^2 (%8.4f g)", (double)a_report.range_m_s2,
-		 (double)(a_report.range_m_s2 / GYROSIM_ONE_G));
+		 (double)(a_report.range_m_s2 / CONSTANTS_ONE_G));
 
 	/* do a simple demand read */
 	sz = h_gyro.read(&g_report, sizeof(g_report));
@@ -1497,6 +1469,11 @@ gyrosim_main(int argc, char *argv[])
 			gyrosim::usage();
 			return 0;
 		}
+	}
+
+	if (myoptind >= argc) {
+		gyrosim::usage();
+		return 1;
 	}
 
 	const char *verb = argv[myoptind];

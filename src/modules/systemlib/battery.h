@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2016, 2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,24 +41,15 @@
 
 #pragma once
 
-#include <controllib/blocks.hpp>
-#include <controllib/block/BlockParam.hpp>
 #include <uORB/topics/battery_status.h>
 #include <drivers/drv_hrt.h>
+#include <px4_module_params.h>
 
 
-class Battery : public control::SuperBlock
+class Battery : public ModuleParams
 {
 public:
-	/**
-	 * Constructor
-	 */
 	Battery();
-
-	/**
-	 * Destructor
-	 */
-	~Battery();
 
 	/**
 	 * Reset all battery stats and report invalid/nothing.
@@ -68,52 +59,63 @@ public:
 	/**
 	 * Get the battery cell count
 	 */
-	int cell_count() { return _param_n_cells.get(); }
+	int cell_count() { return _n_cells.get(); }
 
 	/**
 	 * Get the empty voltage per cell
 	 */
-	float empty_cell_voltage() { return _param_v_empty.get(); }
+	float empty_cell_voltage() { return _v_empty.get(); }
 
 	/**
 	 * Get the full voltage per cell
 	 */
-	float full_cell_voltage() { return _param_v_full.get(); }
+	float full_cell_voltage() { return _v_charged.get(); }
 
 	/**
 	 * Update current battery status message.
 	 *
 	 * @param voltage_v: current voltage in V
 	 * @param current_a: current current in A
+	 * @param connected: Battery is connected
+	 * @param selected_source: This battery is on the brick that the selected source for selected_source
+	 * @param priority: The brick number -1. The term priority refers to the Vn connection on the LTC4417
 	 * @param throttle_normalized: throttle from 0 to 1
 	 */
-	void updateBatteryStatus(hrt_abstime timestamp, float voltage_v, float current_a, float throttle_normalized,
+	void updateBatteryStatus(hrt_abstime timestamp, float voltage_v, float current_a,
+				 bool connected, bool selected_source, int priority,
+				 float throttle_normalized,
 				 bool armed, battery_status_s *status);
 
 private:
 	void filterVoltage(float voltage_v);
+	void filterThrottle(float throttle);
 	void filterCurrent(float current_a);
 	void sumDischarged(hrt_abstime timestamp, float current_a);
-	void estimateRemaining(float voltage_v, float current_a, float throttle_normalized, bool armed);
-	void determineWarning();
+	void estimateRemaining(float voltage_v, float current_a, float throttle, bool armed);
+	void determineWarning(bool connected);
 	void computeScale();
 
-	control::BlockParamFloat _param_v_empty;
-	control::BlockParamFloat _param_v_full;
-	control::BlockParamInt _param_n_cells;
-	control::BlockParamFloat _param_capacity;
-	control::BlockParamFloat _param_v_load_drop;
-	control::BlockParamFloat _param_r_internal;
-	control::BlockParamFloat _param_low_thr;
-	control::BlockParamFloat _param_crit_thr;
+	DEFINE_PARAMETERS(
+		(ParamFloat<px4::params::BAT_V_EMPTY>) _v_empty,
+		(ParamFloat<px4::params::BAT_V_CHARGED>) _v_charged,
+		(ParamInt<px4::params::BAT_N_CELLS>) _n_cells,
+		(ParamFloat<px4::params::BAT_CAPACITY>) _capacity,
+		(ParamFloat<px4::params::BAT_V_LOAD_DROP>) _v_load_drop,
+		(ParamFloat<px4::params::BAT_R_INTERNAL>) _r_internal,
+		(ParamFloat<px4::params::BAT_LOW_THR>) _low_thr,
+		(ParamFloat<px4::params::BAT_CRIT_THR>) _crit_thr,
+		(ParamFloat<px4::params::BAT_EMERGEN_THR>) _emergency_thr
+	)
 
-	float _voltage_filtered_v;
-	float _current_filtered_a;
-	float _discharged_mah;
-	float _remaining_voltage;		///< normalized battery charge level remaining based on voltage
-	float _remaining_capacity;		///< normalized battery charge level remaining based on capacity
-	float _remaining;			///< normalized battery charge level, selected based on config param
-	float _scale;
+	bool _battery_initialized = false;
+	float _voltage_filtered_v = -1.f;
+	float _throttle_filtered = -1.f;
+	float _current_filtered_a = -1.f;
+	float _discharged_mah = 0.f;
+	float _discharged_mah_loop = 0.f;
+	float _remaining_voltage = -1.f;		///< normalized battery charge level remaining based on voltage
+	float _remaining = -1.f;			///< normalized battery charge level, selected based on config param
+	float _scale = 1.f;
 	uint8_t _warning;
 	hrt_abstime _last_timestamp;
 };
